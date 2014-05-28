@@ -41,6 +41,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/pm_runtime.h>
 #include <linux/platform_data/mmc-omap.h>
+#include "sdhci.h"
 
 /* OMAP HSMMC Host Controller Registers */
 #define OMAP_HSMMC_SYSSTATUS	0x0014
@@ -136,11 +137,30 @@
 /*
  * MMC Host controller read/write API's
  */
-#define OMAP_HSMMC_READ(base, reg)	\
-	__raw_readl((base) + OMAP_HSMMC_##reg)
 
-#define OMAP_HSMMC_WRITE(base, reg, val) \
-	__raw_writel((val), (base) + OMAP_HSMMC_##reg)
+static u32 omap_sdhci_readl(struct sdhci_host *host, int reg)
+{
+          u32 val;
+  
+          if (unlikely(reg == SDHCI_PRESENT_STATE)) {
+                  val = readl(host->ioaddr + reg);
+                  return val | SDHCI_WRITE_PROTECT;
+          }
+  
+          return readl(host->ioaddr + reg);
+}
+
+static void omap_sdhci_writel(struct sdhci_host *host, u32 val, int reg)
+{
+          struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+          struct sdhci_tegra *tegra_host = pltfm_host->priv;
+          const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+  
+          if (unlikely(reg == SDHCI_SIGNAL_ENABLE))
+                  val &= ~(SDHCI_INT_TIMEOUT|SDHCI_INT_CRC);
+  
+          writel(val, host->ioaddr + reg);
+}  
 
 struct omap_hsmmc_next {
 	unsigned int	dma_len;
@@ -1606,19 +1626,6 @@ static int omap_hsmmc_disable_fclk(struct mmc_host *mmc)
 	return 0;
 }
 
-static const struct mmc_host_ops omap_hsmmc_ops = {
-	.enable = omap_hsmmc_enable_fclk,
-	.disable = omap_hsmmc_disable_fclk,
-	.post_req = omap_hsmmc_post_req,
-	.pre_req = omap_hsmmc_pre_req,
-	.request = omap_hsmmc_request,
-	.set_ios = omap_hsmmc_set_ios,
-	.get_cd = omap_hsmmc_get_cd,
-	.get_ro = omap_hsmmc_get_ro,
-	.init_card = omap_hsmmc_init_card,
-	/* NYET -- enable_sdio_irq */
-};
-
 #ifdef CONFIG_DEBUG_FS
 
 static int omap_hsmmc_regs_show(struct seq_file *s, void *data)
@@ -2181,6 +2188,11 @@ static struct platform_driver omap_hsmmc_driver = {
 		.pm = &omap_hsmmc_dev_pm_ops,
 		.of_match_table = of_match_ptr(omap_mmc_of_match),
 	},
+};
+
+static const struct sdhci_ops tegra_sdhci_ops = {
+         .read_l     = omap_sdhci_readl,
+         .write_l    = omap_sdhci_writel,
 };
 
 module_platform_driver(omap_hsmmc_driver);
