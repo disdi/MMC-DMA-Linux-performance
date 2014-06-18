@@ -210,4 +210,4 @@ module_platform_driver(omap_sdhci_driver);
 
 MODULE_DESCRIPTION("SDHCI OF driver for TI OMAP HSMMC");
 MODULE_AUTHOR("Saket Sinha <saket.sinha89@gmail.com>");
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL v3");
