@@ -41,6 +41,36 @@ static void omap_writeb(struct sdhci_host *host, u8 val, int reg)
 	sdhci_be32bs_writeb(host, val, reg);
 }
 
+static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
+{
+ 
+         int pre_div = 2;
+         int div = 1;
+         u32 temp;
+
+         temp = sdhci_readl(host, OMAP_SYSTEM_CONTROL);
+         temp &= ~(OMAP_CLOCK_IPGEN | OMAP_CLOCK_HCKEN | OMAP_CLOCK_PEREN
+                 | OMAP_CLOCK_MASK);
+         sdhci_writel(host, temp, OMAP_SYSTEM_CONTROL);
+ 
+
+         while (host->max_clk / pre_div / 16 > clock && pre_div < 256)
+                 pre_div *= 2;
+ 
+         while (host->max_clk / pre_div / div > clock && div < 16)
+                 div++;
+ 
+         pre_div >>= 1;
+         div--;
+
+	 temp = sdhci_readl(host, OMAP_SYSTEM_CONTROL);
+         temp |= (OMAP_CLOCK_IPGEN | OMAP_CLOCK_HCKEN | OMAP_CLOCK_PEREN
+                 | (div << OMAP_DIVIDER_SHIFT)
+                 | (pre_div << OMAP_PREDIV_SHIFT));
+         sdhci_writel(host, temp, OMAP_SYSTEM_CONTROL);
+
+}
+
 static unsigned int omap_of_get_max_clock(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
@@ -93,11 +123,12 @@ static int omap_pltfm_bus_width(struct sdhci_host *host, int width)
 	return 0;
 }
 
-static const struct sdhci_ops sdhci_esdhc_ops = {
+static const struct sdhci_ops sdhci_omap_ops = {
 	.read_l = omap_readl,
 	.write_l = omap_writel,
 	.write_w = omap_writew,
 	.write_b = omap_writeb,
+	.set_clock = omap_of_set_clock,
 	.get_max_clock = omap_of_get_max_clock,
 	.get_min_clock = omap_of_get_min_clock,
 	.platform_init = omap_of_platform_init,
