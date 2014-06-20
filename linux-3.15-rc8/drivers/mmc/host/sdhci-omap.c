@@ -41,7 +41,7 @@ static void omap_writeb(struct sdhci_host *host, u8 val, int reg)
 	sdhci_be32bs_writeb(host, val, reg);
 }
 
-static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
+static void omap_of_set_clock(struct sdhci_host *host, unsigned int clock)
 {
  
          int pre_div = 2;
@@ -144,9 +144,12 @@ static const struct sdhci_pltfm_data sdhci_omap_pdata = {
 
 static int sdhci_omap_probe(struct platform_device *pdev)
 {
+	struct sdhci_pltfm_host *pltfm_host;
 	struct sdhci_host *host;
 	struct device_node *np;
+	struct clk *clk;
 	int ret;
+
 
 	host = sdhci_pltfm_init(pdev, &sdhci_omap_pdata, 0);
 	if (IS_ERR(host))
@@ -159,6 +162,10 @@ static int sdhci_omap_probe(struct platform_device *pdev)
 	/* call to generic mmc_of_parse to support additional capabilities */
 	mmc_of_parse(host->mmc);
 	mmc_of_parse_voltage(np, &host->ocr_mask);
+
+        clk = clk_get(mmc_dev(host->mmc), NULL);
+        clk_prepare_enable(clk);
+        pltfm_host->clk = clk;
 
 	ret = sdhci_add_host(host);
 	if (ret)
